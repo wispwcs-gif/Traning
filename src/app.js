@@ -12,7 +12,8 @@ const STORAGE_KEYS = {
   theme: "fitplan:theme",
   humor: "fitplan:antonMode",
   difficulty: "fitplan:difficulty",
-  language: "fitplan:language"
+  language: "fitplan:language",
+  sets: "fitplan:setProgress"
 };
 
 const DIFFICULTY_OPTIONS = {
@@ -45,7 +46,7 @@ const I18N = {
     allWorkouts: "Смотреть все тренировки",
     presets: "Пресеты",
     workoutChoice: "Выбор тренировки",
-    workoutsHint: "Тренировки можно менять прямо в приложении или в файле src/data.js.",
+    workoutsHint: "Выбери день тренировки и запускай удобный режим под телефон.",
     currentWorkout: "Текущая тренировка",
     back: "← К тренировкам",
     editor: "Редактор",
@@ -56,7 +57,12 @@ const I18N = {
     difficultyTitle: "Степень сложности",
     difficultyIntro: "Выбери нагрузку по состоянию.",
     nowDifficulty: "Сейчас: {label} — {hint}. Можно переключить по самочувствию перед началом или прямо во время тренировки.",
-    doneCount: "{done} из {total} выполнено",
+    doneCount: "{done} из {total} подходов выполнено",
+    setCount: "Подходы: {done} / {total}",
+    setCurrent: "Подход {current} из {total}",
+    setComplete: "Все подходы закрыты",
+    setDoneRest: "Подход выполнен → отдых",
+    finishExercise: "Завершить упражнение",
     restTimer: "Таймер отдыха",
     timerNotStarted: "таймер не запущен",
     timerDone: "отдых завершён",
@@ -158,7 +164,7 @@ const I18N = {
     allWorkouts: "查看全部训练",
     presets: "训练预设",
     workoutChoice: "选择训练",
-    workoutsHint: "可以在应用里直接修改训练和动作。",
+    workoutsHint: "选择训练日，然后用手机友好的模式开始。",
     currentWorkout: "当前训练",
     back: "← 返回训练列表",
     editor: "编辑器",
@@ -169,7 +175,12 @@ const I18N = {
     difficultyTitle: "训练强度",
     difficultyIntro: "根据身体状态选择负荷。",
     nowDifficulty: "当前：{label} — {hint}。训练前或训练中都可以切换。",
-    doneCount: "已完成 {done} / {total}",
+    doneCount: "已完成 {done} / {total} 组",
+    setCount: "组数：{done} / {total}",
+    setCurrent: "第 {current} / {total} 组",
+    setComplete: "所有组已完成",
+    setDoneRest: "完成本组 → 休息",
+    finishExercise: "完成动作",
     restTimer: "休息计时器",
     timerNotStarted: "计时器未启动",
     timerDone: "休息结束",
@@ -517,6 +528,10 @@ const dom = {
   stepStats: document.getElementById("stepStats"),
   stepProgressText: document.getElementById("stepProgressText"),
   stepProgressFill: document.getElementById("stepProgressFill"),
+  stepSetProgress: document.getElementById("stepSetProgress"),
+  stepSetInfo: document.getElementById("stepSetInfo"),
+  stepSetPercent: document.getElementById("stepSetPercent"),
+  stepSetFill: document.getElementById("stepSetFill"),
   stepRestPanel: document.getElementById("stepRestPanel"),
   stepTimerValue: document.getElementById("stepTimerValue"),
   stepTimerStatus: document.getElementById("stepTimerStatus"),
@@ -630,8 +645,7 @@ function showExcuse() {
 
 function checkWorkoutCompletion(workout) {
   if (!state.humorMode || !workout?.exercises?.length) return;
-  const progress = readProgress(workout.id);
-  const done = workout.exercises.filter(exercise => progress[exercise.id]).length;
+  const done = workout.exercises.filter(exercise => isExerciseComplete(workout, exercise)).length;
   if (done === workout.exercises.length && !dom.victoryModal.open) {
     dom.victoryModal.showModal();
   }
@@ -639,6 +653,56 @@ function checkWorkoutCompletion(workout) {
 
 function progressKey(workoutId) {
   return `fitplan:progress:${workoutId}`;
+}
+
+
+function setProgressKey(workoutId) {
+  return `${STORAGE_KEYS.sets}:${workoutId}:${state.difficulty}`;
+}
+
+function readSetProgress(workoutId) {
+  try {
+    return JSON.parse(localStorage.getItem(setProgressKey(workoutId))) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSetProgress(workoutId, progress) {
+  localStorage.setItem(setProgressKey(workoutId), JSON.stringify(progress));
+}
+
+function getCompletedSets(workout, exercise) {
+  const plan = getExercisePlan(exercise);
+  const setProgress = readSetProgress(workout.id);
+  const legacyProgress = readProgress(workout.id);
+  if (legacyProgress[exercise.id]) return plan.sets;
+  return Math.min(Number(setProgress[exercise.id]) || 0, plan.sets);
+}
+
+function setCompletedSets(workoutId, exerciseId, count) {
+  const workout = state.workouts.find(item => item.id === workoutId);
+  const exercise = workout?.exercises?.find(item => item.id === exerciseId);
+  if (!workout || !exercise) return;
+  const plan = getExercisePlan(exercise);
+  const nextCount = Math.max(0, Math.min(Number(count) || 0, plan.sets));
+  const setProgress = readSetProgress(workoutId);
+  setProgress[exerciseId] = nextCount;
+  saveSetProgress(workoutId, setProgress);
+
+  const legacy = readProgress(workoutId);
+  legacy[exerciseId] = nextCount >= plan.sets;
+  saveProgress(workoutId, legacy);
+}
+
+function isExerciseComplete(workout, exercise) {
+  return getCompletedSets(workout, exercise) >= getExercisePlan(exercise).sets;
+}
+
+function workoutSetTotals(workout) {
+  const total = workout.exercises.reduce((sum, exercise) => sum + getExercisePlan(exercise).sets, 0);
+  const done = workout.exercises.reduce((sum, exercise) => sum + getCompletedSets(workout, exercise), 0);
+  return { done, total, percent: total ? Math.round((done / total) * 100) : 0 };
 }
 
 function readProgress(workoutId) {
@@ -661,10 +725,7 @@ function updateHomeDashboard() {
   if (!dom.homeDashboard) return;
   const workout = getActiveWorkout();
   if (!workout) return;
-  const progress = readProgress(workout.id);
-  const total = workout.exercises.length;
-  const done = workout.exercises.filter(exercise => progress[exercise.id]).length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
+  const { done, total, percent } = workoutSetTotals(workout);
   const option = difficultyOption(state.difficulty);
 
   dom.todayCard.className = `today-card accent-${workout.accent || "lime"}`;
@@ -675,7 +736,7 @@ function updateHomeDashboard() {
   dom.todayProgressPercent.textContent = `${percent}%`;
   dom.todayProgressRing.style.setProperty("--today-progress", `${percent}%`);
   dom.todayDifficulty.textContent = `${option.label} ${t("mode")}`;
-  dom.todayExerciseCount.textContent = `${total} ${t("exercisesWord")}`;
+  dom.todayExerciseCount.textContent = `${workout.exercises.length} ${t("exercisesWord")}`;
 }
 
 function getCurrentStepExercise() {
@@ -806,9 +867,7 @@ function showActiveWorkout(scroll = true) {
 
 function renderWorkoutCards() {
   dom.grid.innerHTML = state.workouts.map(workout => {
-    const progress = readProgress(workout.id);
-    const done = workout.exercises.filter(exercise => progress[exercise.id]).length;
-    const percent = workout.exercises.length ? Math.round((done / workout.exercises.length) * 100) : 0;
+    const { percent } = workoutSetTotals(workout);
 
     return `
       <article class="workout-card accent-${workout.accent || "lime"} ${workout.id === state.activeWorkoutId ? "selected" : ""}" data-workout-id="${workout.id}">
@@ -847,7 +906,6 @@ function selectWorkout(workoutId, scroll = true) {
 
 function renderActiveWorkout() {
   const workout = getActiveWorkout();
-  const progress = readProgress(workout.id);
   setActiveAccent(workout);
 
   dom.activeTitle.textContent = workoutText(workout, "title");
@@ -858,7 +916,9 @@ function renderActiveWorkout() {
   updateHomeDashboard();
 
   dom.exerciseList.innerHTML = workout.exercises.map((exercise, index) => {
-    const done = Boolean(progress[exercise.id]);
+    const completedSets = getCompletedSets(workout, exercise);
+    const plan = getExercisePlan(exercise);
+    const done = completedSets >= plan.sets;
     return `
       <article class="exercise-card ${done ? "done" : ""}" data-exercise-id="${exercise.id}">
         <div class="exercise-media">
@@ -873,16 +933,15 @@ function renderActiveWorkout() {
             <button class="done-btn" type="button" aria-label="${t("doneMark")}">${done ? "✓" : ""}</button>
           </div>
           <div class="exercise-tags">
-            <span>${t("rest")}: ${getExercisePlan(exercise).rest || 60} ${t("secShort")}</span>
+            <span>${t("setCount", { done: completedSets, total: plan.sets })}</span>
+            <span>${t("rest")}: ${plan.rest || 60} ${t("secShort")}</span>
             <span class="difficulty-pill difficulty-${difficultyOption(state.difficulty).tone}">${t("difficulty")}: ${difficultyOption(state.difficulty).label}</span>
-            <span>${workoutText(workout, "title")}</span>
           </div>
           <p>${exerciseText(exercise, "technique") || t("noTechnique")}</p>
           <div class="coach-note"><strong>${t("note")}:</strong> ${exerciseText(exercise, "coachNote") || t("addNote")}</div>
           ${renderAntonNote(exercise, index)}
-          <div class="exercise-actions">
+          <div class="exercise-actions exercise-actions-single">
             <button class="secondary-btn compact details-btn" type="button">${t("details")}</button>
-            <button class="primary-btn compact timer-btn" type="button">${t("rest")} ${getExercisePlan(exercise).rest || 60} ${t("secShort")}</button>
           </div>
         </div>
       </article>
@@ -898,10 +957,6 @@ function renderActiveWorkout() {
       toggleExercise(workout.id, exerciseId);
     });
     card.querySelector(".details-btn").addEventListener("click", () => openExerciseModal(exerciseId));
-    card.querySelector(".timer-btn").addEventListener("click", () => {
-      const exercise = workout.exercises.find(item => item.id === exerciseId);
-      startTimer(getExercisePlan(exercise).rest);
-    });
   });
 
   updateProgress();
@@ -1022,33 +1077,33 @@ function closeMediaModal() {
 }
 
 function toggleExercise(workoutId, exerciseId) {
-  const progress = readProgress(workoutId);
-  progress[exerciseId] = !progress[exerciseId];
-  saveProgress(workoutId, progress);
+  const workout = state.workouts.find(item => item.id === workoutId);
+  const exercise = workout?.exercises?.find(item => item.id === exerciseId);
+  if (!workout || !exercise) return;
+  const done = isExerciseComplete(workout, exercise);
+  setCompletedSets(workoutId, exerciseId, done ? 0 : getExercisePlan(exercise).sets);
   renderWorkoutCards();
   renderActiveWorkout();
   if (dom.stepModal.open) renderStepMode();
-  if (progress[exerciseId] && state.humorMode) showToast(funPhrase("done"));
-  checkWorkoutCompletion(getActiveWorkout());
+  if (!done && state.humorMode) showToast(funPhrase("done"));
+  checkWorkoutCompletion(workout);
 }
 
 function setExerciseDone(workoutId, exerciseId, done = true) {
-  const progress = readProgress(workoutId);
-  progress[exerciseId] = done;
-  saveProgress(workoutId, progress);
+  const workout = state.workouts.find(item => item.id === workoutId);
+  const exercise = workout?.exercises?.find(item => item.id === exerciseId);
+  if (!workout || !exercise) return;
+  setCompletedSets(workoutId, exerciseId, done ? getExercisePlan(exercise).sets : 0);
   renderWorkoutCards();
   renderActiveWorkout();
   if (dom.stepModal.open) renderStepMode();
   if (done && state.humorMode) showToast(funPhrase("done"));
-  checkWorkoutCompletion(state.workouts.find(workout => workout.id === workoutId));
+  checkWorkoutCompletion(workout);
 }
 
 function updateProgress() {
   const workout = getActiveWorkout();
-  const progress = readProgress(workout.id);
-  const done = workout.exercises.filter(exercise => progress[exercise.id]).length;
-  const total = workout.exercises.length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
+  const { done, total, percent } = workoutSetTotals(workout);
 
   dom.progressLabel.textContent = t("doneCount", { done, total });
   dom.progressPercent.textContent = `${percent}%`;
@@ -1062,6 +1117,10 @@ function updateProgress() {
 function resetProgress() {
   const workout = getActiveWorkout();
   localStorage.removeItem(progressKey(workout.id));
+  Object.keys(DIFFICULTY_OPTIONS).forEach(mode => {
+    localStorage.removeItem(`${STORAGE_KEYS.sets}:${workout.id}:${mode}`);
+  });
+  closeTimer();
   renderWorkoutCards();
   renderActiveWorkout();
   if (dom.stepModal.open) renderStepMode();
@@ -1109,7 +1168,8 @@ function updateTimerFace() {
   const status = timerStatusText();
   const pauseText = state.timerRunning ? t("pause") : t("start");
 
-  dom.inlineRest.hidden = !state.timerVisible;
+  const showInlineTimer = state.timerVisible && !dom.stepModal.open;
+  dom.inlineRest.hidden = !showInlineTimer;
   dom.inlineTimerValue.textContent = value;
   dom.inlineTimerStatus.textContent = status;
   dom.inlineTimerPause.textContent = pauseText;
@@ -1196,8 +1256,7 @@ function closeTimer() {
 
 function openStepMode() {
   const workout = getActiveWorkout();
-  const progress = readProgress(workout.id);
-  const firstNotDoneIndex = workout.exercises.findIndex(exercise => !progress[exercise.id]);
+  const firstNotDoneIndex = workout.exercises.findIndex(exercise => !isExerciseComplete(workout, exercise));
   state.stepModeIndex = firstNotDoneIndex >= 0 ? firstNotDoneIndex : 0;
   renderStepMode();
   dom.stepModal.showModal();
@@ -1207,11 +1266,14 @@ function renderStepMode() {
   const workout = getActiveWorkout();
   const exercise = getCurrentStepExercise();
   if (!exercise) return;
-  const progress = readProgress(workout.id);
-  const done = Boolean(progress[exercise.id]);
+  const plan = getExercisePlan(exercise);
+  const completedSets = getCompletedSets(workout, exercise);
+  const done = completedSets >= plan.sets;
   const total = workout.exercises.length;
   const number = state.stepModeIndex + 1;
   const percent = total ? Math.round((number / total) * 100) : 0;
+  const setPercent = plan.sets ? Math.round((completedSets / plan.sets) * 100) : 0;
+  const nextSet = Math.min(completedSets + 1, plan.sets);
 
   dom.stepMedia.innerHTML = renderMediaCarousel(exercise, `step-${exercise.id}`, String(number).padStart(2, "0"));
   dom.stepWorkoutName.textContent = workoutText(workout, "title");
@@ -1219,6 +1281,9 @@ function renderStepMode() {
   dom.stepStats.innerHTML = renderPlanStats(exercise);
   dom.stepProgressText.textContent = t("exerciseNum", { number, total });
   dom.stepProgressFill.style.width = `${percent}%`;
+  if (dom.stepSetInfo) dom.stepSetInfo.textContent = done ? t("setComplete") : t("setCurrent", { current: nextSet, total: plan.sets });
+  if (dom.stepSetPercent) dom.stepSetPercent.textContent = `${setPercent}%`;
+  if (dom.stepSetFill) dom.stepSetFill.style.width = `${setPercent}%`;
   dom.stepTechnique.textContent = exerciseText(exercise, "technique") || t("noTechnique");
   dom.stepCoachNote.textContent = exerciseText(exercise, "coachNote") || t("addNote");
   if (dom.stepAntonNote) {
@@ -1227,7 +1292,7 @@ function renderStepMode() {
   }
   dom.stepPrev.disabled = state.stepModeIndex === 0;
   dom.stepNext.textContent = state.stepModeIndex === total - 1 ? (state.humorMode ? t("closeQuarter") : t("list")) : t("next");
-  dom.stepDone.textContent = done ? t("doneMark") : (state.humorMode ? t("doneRestAnton") : t("doneRest"));
+  dom.stepDone.textContent = done ? t("doneMark") : (completedSets >= plan.sets - 1 ? t("finishExercise") : t("setDoneRest"));
   dom.stepDone.classList.toggle("is-done", done);
   initMediaCarousels(dom.stepMedia);
   updateTimerFace();
@@ -1257,10 +1322,30 @@ function stepNext() {
 function stepDone() {
   const workout = getActiveWorkout();
   const exercise = getCurrentStepExercise();
-  const progress = readProgress(workout.id);
-  const alreadyDone = Boolean(progress[exercise.id]);
-  setExerciseDone(workout.id, exercise.id, !alreadyDone);
-  if (!alreadyDone) startTimer(getExercisePlan(exercise).rest);
+  if (!exercise) return;
+  const plan = getExercisePlan(exercise);
+  const completedSets = getCompletedSets(workout, exercise);
+
+  if (completedSets >= plan.sets) {
+    showToast(isZh() ? "这个动作已经完成。" : "Это упражнение уже закрыто.");
+    return;
+  }
+
+  const nextCount = completedSets + 1;
+  setCompletedSets(workout.id, exercise.id, nextCount);
+  renderWorkoutCards();
+  renderActiveWorkout();
+
+  if (nextCount < plan.sets) {
+    startTimer(plan.rest);
+    showToast(t("setCount", { done: nextCount, total: plan.sets }));
+  } else {
+    closeTimer();
+    if (state.humorMode) showToast(funPhrase("done"));
+    checkWorkoutCompletion(workout);
+  }
+
+  if (dom.stepModal.open) renderStepMode();
 }
 
 function stepRest() {

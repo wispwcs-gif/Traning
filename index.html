@@ -104,7 +104,7 @@
           </div>
           <div class="active-actions visible-actions">
             <button class="secondary-btn compact back-btn action-return" id="backToWorkoutsBtn" type="button">← К тренировкам</button>
-            <button class="secondary-btn compact" id="editorBtn" type="button">Редактор</button>
+            <button class="secondary-btn compact" id="editorBtn" type="button" hidden>Редактор</button>
             <button class="secondary-btn compact action-reset" id="resetProgressBtn" type="button">Сбросить прогресс</button>
             <button class="primary-btn compact action-step" id="stepModeBtn" type="button">Пошаговый режим</button>
           </div>
@@ -234,6 +234,13 @@
           <span class="eyebrow" id="stepWorkoutName"></span>
           <h2 id="stepExerciseName"></h2>
           <div class="modal-stats" id="stepStats"></div>
+          <div class="step-set-progress" id="stepSetProgress">
+            <div class="set-progress-head">
+              <span id="stepSetInfo">Подход 1 из 3</span>
+              <strong id="stepSetPercent">0%</strong>
+            </div>
+            <div class="set-progress-bar"><span id="stepSetFill"></span></div>
+          </div>
           <div class="step-progress-line">
             <span id="stepProgressText"></span>
             <div><span id="stepProgressFill"></span></div>
