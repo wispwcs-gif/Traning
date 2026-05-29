@@ -1,59 +1,292 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Конструктор тренировок</title>
-  <link rel="stylesheet" href="src/style.css" />
+  <title>AntonFit — тренировки</title>
+  <link rel="stylesheet" href="styles/style.css" />
 </head>
 <body>
-  <div class="app">
+  <div class="app-shell">
     <header class="hero">
-      <div>
-        <div class="badge">🏋️ Training Planner</div>
-        <h1>Конструктор тренировок</h1>
-        <p>Создавай тренировки по дням, добавляй упражнения, подходы, повторы, ссылки на видео и локальные фото/видео.</p>
-      </div>
-      <div class="hero-actions">
-        <button id="copyPlanBtn" class="btn dark">Скопировать план</button>
-        <button id="exportBtn" class="btn light">Скачать JSON</button>
-        <label class="btn light file-btn">Загрузить JSON<input id="importInput" type="file" accept="application/json" /></label>
-      </div>
+      <nav class="topbar">
+        <div class="brand">
+          <span class="brand-mark">AF</span>
+          <div>
+            <strong id="brandTitle">AntonFit</strong>
+            <small id="brandSubtitle" hidden></small>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-btn language-toggle" id="languageToggle" type="button" aria-pressed="false">RU / 中文</button>
+          <button class="ghost-btn humor-toggle" id="humorToggle" type="button" aria-pressed="false">Антон-mode: выкл</button>
+          <button class="ghost-btn excuse-btn" id="excuseBtn" type="button" hidden>Отмазка</button>
+          <button class="ghost-btn" id="themeToggle" type="button" aria-label="Переключить тему">
+            <span class="theme-icon">🌙</span>
+          </button>
+        </div>
+      </nav>
+
+      <section class="hero-grid hero-compact" hidden>
+        <div class="hero-content">
+          <span class="eyebrow">Личный фитнес-конструктор</span>
+          <h1></h1>
+          <p id="heroSubtitle"></p>
+        </div>
+
+        <aside class="hero-card compact-summary" aria-label="Сводка тренировки">
+          <div>
+            <span>В фокусе</span>
+            <strong id="featuredWorkout">День ног</strong>
+            <p id="featuredText">Мощная тренировка на ноги, ягодицы и общую выносливость.</p>
+          </div>
+          <div class="hero-actions">
+            <a href="#workouts" class="primary-btn">Выбрать</a>
+            <button class="secondary-btn" id="continueBtn" type="button">Продолжить</button>
+          </div>
+          <div class="mini-stats">
+            <div><b id="featuredExercises">6</b><small>упражнений</small></div>
+            <div><b>RU</b><small>中文</small></div>
+          </div>
+        </aside>
+      </section>
     </header>
-    <main class="layout">
-      <aside class="panel calendar-panel">
-        <div class="calendar-head">
-          <button id="prevMonth" class="round-btn">‹</button>
-          <div><div class="section-label">Календарь</div><h2 id="monthTitle">Месяц</h2></div>
-          <button id="nextMonth" class="round-btn">›</button>
+
+    <main>
+      <section class="home-dashboard" id="homeDashboard" aria-label="Домашний экран тренировки">
+        <div class="today-card" id="todayCard">
+          <div class="today-main">
+            <span class="eyebrow">Сегодня тренируем</span>
+            <h2 id="todayWorkoutTitle">День ног</h2>
+            <p id="todayWorkoutText">Последняя выбранная тренировка готова к старту.</p>
+            <div class="today-actions">
+              <button class="primary-btn" id="todayStartBtn" type="button">Начать тренировку</button>
+              <button class="secondary-btn" id="todayStepBtn" type="button">Пошаговый старт</button>
+            </div>
+          </div>
+          <div class="today-side">
+            <div class="today-progress-ring" id="todayProgressRing" style="--today-progress: 0%">
+              <strong id="todayProgressPercent">0%</strong>
+              <span>готово</span>
+            </div>
+            <div class="today-mini">
+              <span id="todayDifficulty">Нормальный режим</span>
+              <b id="todayExerciseCount">6 упражнений</b>
+            </div>
+          </div>
         </div>
-        <div class="weekdays"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
-        <div id="calendarGrid" class="calendar-grid"></div>
-        <div class="selected-date-box">
-          <label>Выбранная дата</label>
-          <input id="selectedDateInput" type="date" />
-          <button id="createWorkoutBtn" class="btn blue full">Создать тренировку</button>
+
+        <div class="home-strip">
+          <div>
+            <span class="eyebrow">Быстрый выбор</span>
+            <h2>Выбери день или продолжай последний</h2>
+          </div>
+          <button class="secondary-btn compact" id="scrollToWorkoutsBtn" type="button">Смотреть все тренировки</button>
         </div>
-      </aside>
-      <section id="workspace" class="workspace"></section>
+      </section>
+
+      <section class="section-head" id="workouts">
+        <div>
+          <span class="eyebrow">Пресеты</span>
+          <h2>Выбор тренировки</h2>
+        </div>
+        <p>Тренировки можно менять прямо в приложении или в файле <code>src/data.js</code>.</p>
+      </section>
+
+      <section class="workout-grid" id="workoutGrid" aria-label="Список тренировок"></section>
+
+      <section class="active-panel" id="activePanel" hidden>
+        <div class="active-header">
+          <div>
+            <span class="eyebrow">Текущая тренировка</span>
+            <h2 id="activeTitle"></h2>
+            <p id="activeDescription"></p>
+          </div>
+          <div class="active-actions visible-actions">
+            <button class="secondary-btn compact back-btn action-return" id="backToWorkoutsBtn" type="button">← К тренировкам</button>
+            <button class="secondary-btn compact" id="editorBtn" type="button">Редактор</button>
+            <button class="secondary-btn compact action-reset" id="resetProgressBtn" type="button">Сбросить прогресс</button>
+            <button class="primary-btn compact action-step" id="stepModeBtn" type="button">Пошаговый режим</button>
+          </div>
+        </div>
+
+
+        <div class="difficulty-control" aria-label="Выбор сложности тренировки">
+          <div>
+            <span class="eyebrow">Самочувствие сегодня</span>
+            <h3>Степень сложности</h3>
+            <p id="difficultyHint">Выбери нагрузку по состоянию.</p>
+          </div>
+          <div class="difficulty-tabs" id="difficultyTabs"></div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-info">
+            <span id="progressLabel">0 из 0 выполнено</span>
+            <strong id="progressPercent">0%</strong>
+          </div>
+          <div class="progress-joke" id="progressJoke" hidden></div>
+          <div class="progress-bar" aria-hidden="true">
+            <span id="progressFill"></span>
+          </div>
+        </div>
+
+        <div class="inline-rest" id="inlineRest" hidden>
+          <div>
+            <span class="eyebrow">Таймер отдыха</span>
+            <strong id="inlineTimerValue">00:00</strong>
+            <small id="inlineTimerStatus">таймер не запущен</small>
+          </div>
+          <div class="inline-rest-actions">
+            <button class="secondary-btn compact" id="inlineTimerPause" type="button">Пауза</button>
+            <button class="secondary-btn compact" id="inlineTimerReset" type="button">Сброс</button>
+            <button class="primary-btn compact" id="inlineTimerClose" type="button">Закрыть</button>
+          </div>
+        </div>
+
+        <section class="editor-panel" id="editorPanel" hidden>
+          <div class="editor-head">
+            <div>
+              <span class="eyebrow">Редактор</span>
+              <h3>Настройка тренировок</h3>
+              <p>Изменения сохраняются в браузере. Можно спокойно менять упражнения без кода.</p>
+            </div>
+            <div class="editor-actions">
+              <button class="secondary-btn compact" id="exportDataBtn" type="button" hidden>Экспорт JSON</button>
+              <button class="secondary-btn compact" id="importToggleBtn" type="button" hidden>Импорт JSON</button>
+              <button class="secondary-btn compact" id="resetDataBtn" type="button">Вернуть демо</button>
+            </div>
+          </div>
+          <div class="import-panel" id="importPanel" hidden>
+            <div>
+              <span class="eyebrow">Перенос тренировок</span>
+              <h4>Импорт JSON</h4>
+              <p>Вставь JSON из экспорта или выбери файл. После импорта тренировки сохранятся в браузере.</p>
+            </div>
+            <textarea id="importJsonInput" rows="6" placeholder='Вставь сюда JSON, например [{ "id": "legs", "title": "День ног", ... }]'></textarea>
+            <div class="import-actions">
+              <input id="importFileInput" type="file" accept="application/json,.json" hidden />
+              <button class="secondary-btn compact" id="chooseImportFileBtn" type="button">Выбрать файл</button>
+              <button class="primary-btn compact" id="applyImportBtn" type="button">Импортировать</button>
+              <small id="importStatus"></small>
+            </div>
+          </div>
+
+          <div class="editor-grid">
+            <form class="editor-form" id="workoutForm">
+              <label>Тренировка
+                <select id="editorWorkoutSelect"></select>
+              </label>
+              <label>Название
+                <input id="editorTitle" type="text" placeholder="День ног" />
+              </label>
+              <label>Подзаголовок
+                <input id="editorSubtitle" type="text" placeholder="Ноги + ягодицы" />
+              </label>
+              <label>Уровень
+                <input id="editorLevel" type="text" placeholder="Средний" />
+              </label>
+              <label>Длительность
+                <input id="editorDuration" type="text" placeholder="55–70 мин" />
+              </label>
+              <label>Цвет дня
+                <select id="editorAccent">
+                  <option value="lime">Лайм</option>
+                  <option value="orange">Оранжевый</option>
+                  <option value="blue">Синий</option>
+                  <option value="purple">Фиолетовый</option>
+                  <option value="red">Красный</option>
+                </select>
+              </label>
+              <label class="full-field">Описание
+                <textarea id="editorDescription" rows="3"></textarea>
+              </label>
+              <button class="primary-btn compact" type="submit">Сохранить тренировку</button>
+            </form>
+            <div class="exercise-editor">
+              <div class="exercise-editor-head">
+                <h4>Упражнения</h4>
+                <button class="primary-btn compact" id="addExerciseBtn" type="button">+ Добавить</button>
+              </div>
+              <div id="editorExerciseList" class="editor-exercise-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="exercise-list" id="exerciseList"></div>
+      </section>
     </main>
   </div>
-  <template id="emptyTemplate"><div class="empty-state"><div class="empty-icon">🏋️</div><h2>На эту дату тренировки пока нет</h2><p>Выбери дату в календаре и создай тренировку.</p></div></template>
-  <template id="exerciseTemplate">
-    <article class="exercise-card">
-      <div class="exercise-top"><div><div class="muted">Упражнение</div><strong class="exercise-number"></strong></div><button class="icon-btn remove-exercise" title="Удалить упражнение">🗑️</button></div>
-      <div class="form-grid">
-        <label class="wide">Название<input class="exercise-name" type="text" /></label>
-        <label>Подходы<input class="exercise-sets" type="number" min="1" /></label>
-        <label>Повторы<input class="exercise-reps" type="number" min="1" /></label>
-        <label>Вес<input class="exercise-weight" type="text" placeholder="Например: 80 кг" /></label>
-        <label>Отдых<input class="exercise-rest" type="text" placeholder="90 сек" /></label>
-        <label class="wide">Ссылка на видео<input class="exercise-video" type="url" placeholder="YouTube / Rutube / Google Drive" /></label>
-        <label class="wide">Комментарий<textarea class="exercise-comment" rows="3" placeholder="Техника, подсказки, ограничения..."></textarea></label>
-        <div class="wide"><label class="upload-box"><span>📷 Добавить фото/видео</span><small>Файлы показываются в карточке, но хранятся только в этом браузере</small><input class="exercise-files" type="file" accept="image/*,video/*" multiple /></label><div class="media-grid"></div></div>
+
+  <dialog class="modal" id="exerciseModal">
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" type="button" aria-label="Закрыть">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </dialog>
+
+  <dialog class="step-modal" id="stepModal">
+    <div class="step-card">
+      <button class="modal-close" id="stepClose" type="button" aria-label="Закрыть пошаговый режим">×</button>
+      <div class="step-layout">
+        <div class="step-media" id="stepMedia"></div>
+        <div class="step-content">
+          <span class="eyebrow" id="stepWorkoutName"></span>
+          <h2 id="stepExerciseName"></h2>
+          <div class="modal-stats" id="stepStats"></div>
+          <div class="step-progress-line">
+            <span id="stepProgressText"></span>
+            <div><span id="stepProgressFill"></span></div>
+          </div>
+          <div class="step-rest-panel" id="stepRestPanel" hidden>
+            <div>
+              <span>Отдых между подходами</span>
+              <strong id="stepTimerValue">00:00</strong>
+              <small id="stepTimerStatus">таймер не запущен</small>
+            </div>
+            <div class="step-rest-actions">
+              <button class="secondary-btn compact" id="stepTimerPause" type="button">Пауза</button>
+              <button class="secondary-btn compact" id="stepTimerReset" type="button">Сброс</button>
+              <button class="primary-btn compact" id="stepTimerClose" type="button">Закрыть</button>
+            </div>
+          </div>
+          <h4>Техника</h4>
+          <p id="stepTechnique"></p>
+          <h4>Примечание</h4>
+          <p id="stepCoachNote"></p>
+          <div class="anton-note step-anton-note" id="stepAntonNote" hidden></div>
+          <div class="step-actions">
+            <button class="secondary-btn compact" id="stepPrev" type="button">Назад</button>
+            <button class="primary-btn compact" id="stepDone" type="button">Выполнено → отдых</button>
+            <button class="secondary-btn compact" id="stepRest" type="button">Запустить отдых</button>
+            <button class="primary-btn compact" id="stepNext" type="button">Следующее</button>
+          </div>
+        </div>
       </div>
-    </article>
-  </template>
+    </div>
+  </dialog>
+
+  <dialog class="media-lightbox" id="mediaModal">
+    <button class="modal-close media-lightbox-close" id="mediaModalClose" type="button" aria-label="Закрыть">×</button>
+    <div class="media-lightbox-body" id="mediaModalBody"></div>
+  </dialog>
+
+  <dialog class="victory-modal" id="victoryModal">
+    <div class="victory-card">
+      <button class="modal-close" id="victoryClose" type="button" aria-label="Закрыть">×</button>
+      <div class="confetti" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <span class="eyebrow">План закрыт</span>
+      <h2>Антон официально красавчик.</h2>
+      <p>Тренировочный квартал завершён. Мышцы приняли отчёт без замечаний.</p>
+      <button class="primary-btn" id="bonusBtn" type="button">Выдать премию мышцам</button>
+    </div>
+  </dialog>
+
+  <div class="fun-toast" id="funToast" role="status" aria-live="polite" hidden></div>
+
+  <script src="src/data.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>
