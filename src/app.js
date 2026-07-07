@@ -6,6 +6,32 @@ const ACCENT_MAP = {
   red: "#ff465d"
 };
 
+// Базовый адрес для картинок и видео.
+// Пока стоит "assets/", приложение работает как раньше с локальной папкой.
+// Когда загрузишь медиа на сайт, замени на свой адрес, например:
+// const MEDIA_BASE_URL = "https://example.ru/training/assets/";
+const MEDIA_BASE_URL = window.FITPLAN_MEDIA_BASE_URL || "";
+const MEDIA_LOCAL_PREFIX = "assets/";
+
+function resolveMediaUrl(path, fallback = "") {
+  const rawPath = String(path || fallback || "").trim();
+  if (!rawPath) return "";
+  if (/^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith("data:") || rawPath.startsWith("blob:")) {
+    return rawPath;
+  }
+
+  const baseUrl = String(MEDIA_BASE_URL || "").trim();
+  if (!baseUrl) return rawPath;
+
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const cleanPath = rawPath
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .replace(new RegExp(`^${MEDIA_LOCAL_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"), "");
+
+  return `${cleanBase}/${encodeURI(cleanPath).replace(/%2F/g, "/")}`;
+}
+
 const STORAGE_KEYS = {
   workouts: "fitplan:customWorkouts",
   lastWorkout: "fitplan:lastWorkout",
@@ -965,25 +991,28 @@ function renderActiveWorkout() {
 
 function renderMediaCarousel(exercise, carouselId, numberLabel = "") {
   const safeId = carouselId.replace(/[^a-zA-Z0-9_-]/g, "-");
-  const imageSrc = exercise.image || "assets/placeholder.svg";
-  const videoSrc = exercise.video || "assets/placeholder-video.mp4";
+  const imageSrc = resolveMediaUrl(exercise.image, "assets/placeholder.svg");
+  const videoSrc = resolveMediaUrl(exercise.video, "assets/placeholder-video.mp4");
   const title = exerciseText(exercise, "name");
+  const imageSrcAttr = escapeAttr(imageSrc);
+  const videoSrcAttr = escapeAttr(videoSrc);
+  const titleAttr = escapeAttr(title);
 
   return `
     <div class="media-carousel" data-carousel-id="${safeId}">
       <div class="media-track" id="${safeId}-track" tabindex="0" aria-label="${t("mediaAria")}">
         <figure class="media-slide">
-          <img class="fullscreen-media-trigger" src="${imageSrc}" alt="${title}" loading="lazy" data-media-type="image" data-media-src="${imageSrc}" data-media-title="${title}" />
+          <img class="fullscreen-media-trigger" src="${imageSrcAttr}" alt="${titleAttr}" loading="lazy" data-media-type="image" data-media-src="${imageSrcAttr}" data-media-title="${titleAttr}" />
           <figcaption>${t("photoCaption")}</figcaption>
-          <button class="fullscreen-btn" type="button" aria-label="${t("openFullscreen")}" data-media-type="image" data-media-src="${imageSrc}" data-media-title="${title}">⛶ ${t("fullscreen")}</button>
+          <button class="fullscreen-btn" type="button" aria-label="${t("openFullscreen")}" data-media-type="image" data-media-src="${imageSrcAttr}" data-media-title="${titleAttr}">⛶ ${t("fullscreen")}</button>
         </figure>
         <figure class="media-slide">
-          <video class="fullscreen-media-trigger" controls preload="metadata" playsinline poster="${imageSrc}" data-media-type="video" data-media-src="${videoSrc}" data-media-poster="${imageSrc}" data-media-title="${title}">
-            <source src="${videoSrc}" type="video/mp4" />
+          <video class="fullscreen-media-trigger" controls preload="metadata" playsinline poster="${imageSrcAttr}" data-media-type="video" data-media-src="${videoSrcAttr}" data-media-poster="${imageSrcAttr}" data-media-title="${titleAttr}">
+            <source src="${videoSrcAttr}" type="video/mp4" />
             ${t("videoUnsupported")}
           </video>
           <figcaption>${t("videoCaption")}</figcaption>
-          <button class="fullscreen-btn" type="button" aria-label="${t("openFullscreen")}" data-media-type="video" data-media-src="${videoSrc}" data-media-poster="${imageSrc}" data-media-title="${title}">⛶ ${t("fullscreen")}</button>
+          <button class="fullscreen-btn" type="button" aria-label="${t("openFullscreen")}" data-media-type="video" data-media-src="${videoSrcAttr}" data-media-poster="${imageSrcAttr}" data-media-title="${titleAttr}">⛶ ${t("fullscreen")}</button>
         </figure>
       </div>
       ${numberLabel ? `<span class="exercise-number">${numberLabel}</span>` : ""}
